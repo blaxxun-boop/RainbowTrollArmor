@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Reflection;
 using System.Linq;
+using BepInEx.Configuration;
+using ServerSync;
 
 namespace RainbowTrollArmor
 {
@@ -40,9 +42,22 @@ namespace RainbowTrollArmor
         public static GameObject legs;
         public static GameObject vest;
 
+        public static ConfigSync configSync = new ConfigSync(PluginGUID) { DisplayName = PluginName, CurrentVersion = PluginVersion };
 
         public static JsonLoader jsonLoader = new JsonLoader();
+        
+        
+        ConfigEntry<T> config<T>(string group, string name, T value, ConfigDescription description, bool synchronizedSetting = true)
+        {
+            ConfigEntry<T> configEntry = Config.Bind(group, name, value, description);
 
+            SyncedConfigEntry<T> syncedConfigEntry = configSync.AddConfigEntry(configEntry);
+            syncedConfigEntry.SynchronizedConfig = synchronizedSetting;
+
+            return configEntry;
+        }
+
+        ConfigEntry<T> config<T>(string group, string name, T value, string description, bool synchronizedSetting = true) => config(group, name, value, new ConfigDescription(description), synchronizedSetting);
         private void Awake()
         {
             createPrefabContainer();
@@ -523,24 +538,6 @@ namespace RainbowTrollArmor
             return requirements.ToArray();
         }
 
-        [HarmonyPatch(typeof(ZNetScene), "Awake")]
-        public static class ZNetScene_Awake_Path
-        {
-            public static void Prefix(ZNetScene __instance)
-            {
-                if (__instance == null)
-                {
-                    return;
-                }
-
-                foreach (GameObject item in prefabs)
-                {
-                    __instance.m_prefabs.Add(item);
-                }
-
-            }
-        }
-
         [HarmonyPatch(typeof(ObjectDB), "CopyOtherDB")]
         public static class Object_CopyOtherDB_Path
         {
@@ -569,15 +566,33 @@ namespace RainbowTrollArmor
             }
         }
 
-        [HarmonyPatch(typeof(ObjectDB), "Awake")]
+        [HarmonyPatch(typeof(Game), "Awake")]
+        public static class Game_Awake_Path
+        {
+            public static void Prefix()
+            {
+                Object_Awake_Path.hasSpawned = false;
+            }
+        }
+
+        [HarmonyPatch(typeof(Game), nameof(Game.RequestRespawn))]
         public static class Object_Awake_Path
         {
+            public static bool hasSpawned;
+            
             public static void Postfix()
             {
-                if (!IsObjectDBValid())
+                if (hasSpawned)
                 {
                     return;
                 }
+                hasSpawned = true;
+
+                foreach (GameObject item in prefabs)
+                {
+                    ZNetScene.instance.m_prefabs.Add(item);
+                }
+
                 setOriginals(ObjectDB.instance.m_items);
                 getCraftingStation();
                 createArmorPieces();

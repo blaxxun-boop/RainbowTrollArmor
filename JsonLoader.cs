@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using LitJson;
 using System.IO;
+using System.Linq;
+using ServerSync;
 using UnityEngine;
 
 namespace RainbowTrollArmor
@@ -9,10 +11,11 @@ namespace RainbowTrollArmor
     public class JsonLoader
     {
         public List<ArmorPieceData> armorJson = new List<ArmorPieceData>();
+        public CustomSyncedValue<Dictionary<string, string>> jsonData = new CustomSyncedValue<Dictionary<string, string>>(Launch.configSync, "armor jsons");
 
         public void loadJson()
         {
-            LoadArmors();
+            LoadArmorFiles();
         }
 
         private string[] jsonFilePath(string folderName, string extension)
@@ -23,13 +26,20 @@ namespace RainbowTrollArmor
             return jsonFilePath;
         }
 
+        void LoadArmorFiles()
+        {
+            jsonData.ValueChanged += LoadArmors;
+            jsonData.AssignLocalValue(jsonFilePath("Configs", "*.json").ToDictionary(f => f, File.ReadAllText));
+        }
+
         void LoadArmors()
         {
+            armorJson.Clear();
+            
             int counter = 0;
-            foreach (string jsonFile in jsonFilePath("Configs", "*.json"))
+            foreach (KeyValuePair<string, string> jsonFile in jsonData.Value)
             {
-                string jsonString = File.ReadAllText(jsonFile);
-                ArmorPieceData converting = JsonMapper.ToObject<ArmorPieceData>(jsonString);
+                ArmorPieceData converting = JsonMapper.ToObject<ArmorPieceData>(jsonFile.Value);
                 if (converting != null)
                 {
                     armorJson.Add(converting);
@@ -37,7 +47,7 @@ namespace RainbowTrollArmor
                 }
                 else
                 {
-                    Debug.LogError("Loading FAILED file: " + jsonFile);
+                    Debug.LogError("Loading FAILED file: " + jsonFile.Key);
                 }
             }
             Debug.Log("Armor JsonFiles Loaded: " + counter);
