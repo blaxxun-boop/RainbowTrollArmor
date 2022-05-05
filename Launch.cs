@@ -238,7 +238,7 @@ namespace RainbowTrollArmor
         }
         private static Material setProperPlayerArmorTexture(ItemDrop itemDrop, ArmorPieceData armorPieceData, ArmorPieceType type)
         {
-            if (type == ArmorPieceType.Back)
+            if (new ZNet().IsDedicated() || type == ArmorPieceType.Back)
             {
                 return null;
             }
